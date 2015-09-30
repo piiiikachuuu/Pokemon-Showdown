@@ -182,7 +182,7 @@ var Room = (function () {
 
 		var timeUntilExpire = this.muteQueue[0].time - Date.now();
 		if (timeUntilExpire <= 0) {
-			this.unmute(this.muteQueue[0].userid, true);
+			this.unmute(this.muteQueue[0].userid, "Your mute in '" + this.title + "' has expired.");
 			//runMuteTimer() is called again in unmute() so this function instance should be closed
 			return;
 		}
@@ -248,7 +248,7 @@ var Room = (function () {
 		user.updateIdentity(this.id);
 		return userid;
 	};
-	Room.prototype.unmute = function (userid, sendPopup) {
+	Room.prototype.unmute = function (userid, notifyText) {
 		var successUserid = false;
 		var user = Users(userid);
 		if (!user) {
@@ -277,9 +277,9 @@ var Room = (function () {
 			}
 		}
 
-		if (user.connected && successUserid) {
+		if (successUserid && user in this.users) {
 			user.updateIdentity(this.id);
-			if (sendPopup) user.popup("Your mute in " + this.title + " has expired.");
+			if (notifyText) user.popup(notifyText);
 		}
 		return successUserid;
 	};
@@ -304,7 +304,7 @@ var GlobalRoom = (function () {
 
 		this.chatRoomData = [];
 		try {
-			this.chatRoomData = JSON.parse(fs.readFileSync('config/chatrooms.json'));
+			this.chatRoomData = require('./config/chatrooms.json');
 			if (!Array.isArray(this.chatRoomData)) this.chatRoomData = [];
 		} catch (e) {} // file doesn't exist [yet]
 
@@ -442,7 +442,7 @@ var GlobalRoom = (function () {
 	};
 
 	GlobalRoom.prototype.getFormatListText = function () {
-		var formatListText = '|formats';
+		var formatListText = '|formats' + (Ladders.formatsListPrefix || '');
 		var curSection = '';
 		for (var i in Tools.data.Formats) {
 			var format = Tools.data.Formats[i];
@@ -539,26 +539,27 @@ var GlobalRoom = (function () {
 		// tell the user they've started searching
 		user.send('|updatesearch|' + JSON.stringify({searching: Object.keys(user.searching).concat(formatid)}));
 
-		// get the user's rating before actually starting to search
 		var newSearch = {
-			userid: user.userid,
+			userid: '',
 			team: user.team,
 			rating: 1000,
 			time: new Date().getTime()
 		};
 		var self = this;
+
+		// Get the user's rating before actually starting to search.
 		Ladders(formatid).getRating(user.userid).then(function (rating) {
 			newSearch.rating = rating;
+			newSearch.userid = user.userid;
 			self.addSearch(newSearch, user, formatid);
 		}, function (error) {
-			// The promise only rejects if the user changed names before the search
-			// could start; the search simply doesn't happen in this case.
+			// Rejects iff we retrieved the rating but the user had changed their name;
+			// the search simply doesn't happen in this case.
 		});
 	};
 	GlobalRoom.prototype.matchmakingOK = function (search1, search2, user1, user2, formatid) {
-		// users must exist
-		// TODO: ACTUALLY REMOVE THESE USERS FROM THE SEARCH LIST
-		if (!user1 || !user2) return false;
+		// This should never happen.
+		if (!user1 || !user2) return void require('./crashlogger.js')(new Error("Matched user " + (user1 ? search2.userid : search1.userid) + " not found"), "The main process");
 
 		// users must be different
 		if (user1 === user2) return false;
@@ -665,7 +666,7 @@ var GlobalRoom = (function () {
 			title: title
 		};
 		var room = Rooms.createChatRoom(id, title, chatRoomData);
-		this.chatRoomData.push(chatRoomData);
+		// Only add room to chatRoomData if it is not a personal room, those aren't saved.
 		this.chatRooms.push(room);
 		this.writeChatRoomData();
 		return true;
@@ -1418,8 +1419,8 @@ var ChatRoom = (function () {
 	function ChatRoom(roomid, title, options) {
 		Room.call(this, roomid, title);
 		if (options) {
-			this.chatRoomData = options;
 			Object.merge(this, options);
+			if (!this.isPersonal) this.chatRoomData = options;
 		}
 
 		this.logTimes = true;
@@ -1580,7 +1581,16 @@ var ChatRoom = (function () {
 		}
 		this.lastUpdate = this.log.length;
 
+		// Set up expire timer to clean up inactive personal rooms.
+		if (this.isPersonal) {
+			if (this.expireTimer) clearTimeout(this.expireTimer);
+			this.expireTimer = setTimeout(this.tryExpire.bind(this), TIMEOUT_INACTIVE_DEALLOCATE);
+		}
+
 		this.send(update);
+	};
+	ChatRoom.prototype.tryExpire = function () {
+		this.destroy();
 	};
 	ChatRoom.prototype.getIntroMessage = function () {
 		if (this.modchat && this.introMessage) {
@@ -1702,6 +1712,9 @@ var ChatRoom = (function () {
 				delete aliases[this.aliases[i]];
 			}
 		}
+
+		// remove active mute timer if any
+		if (this.muteTimer) clearTimeout(this.muteTimer);
 
 		// get rid of some possibly-circular references
 		delete rooms[this.id];

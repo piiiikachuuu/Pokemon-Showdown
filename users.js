@@ -255,7 +255,7 @@ Users.socketConnect = function (worker, workerid, socketid, ip) {
 		} else if (checkResult === '#cflood') {
 			connection.send("|popup||modal|PS is under heavy load and cannot accommodate your connection right now.");
 		} else {
-			connection.send("|popup||modal|Your IP (" + ip + ") used was banned while using the username '" + checkResult + "'. Your ban will expire in a few days.||" + (Config.appealurl ? " Or you can appeal at:\n" + Config.appealurl : ""));
+			connection.send("|popup||modal|Your IP (" + ip + ") was banned while using the username '" + checkResult + "'. Your ban will expire in a few days.||" + (Config.appealurl ? " Or you can appeal at:\n" + Config.appealurl : ""));
 		}
 		return connection.destroy();
 	}
@@ -1334,7 +1334,16 @@ User = (function () {
 				return false;
 			}
 		}
-		if (room.modjoin && !this.can('bypassall')) {
+		var bypassAll = this.can('bypassall');
+		if (room.tour && !bypassAll) {
+			var tour = room.tour.tour;
+			var errorMessage = tour.onBattleJoin(room, this);
+			if (errorMessage) {
+				connection.sendTo(roomid, "|noinit|joinfailed|" + errorMessage);
+				return false;
+			}
+		}
+		if (room.modjoin && !bypassAll) {
 			var userGroup = this.group;
 			if (room.auth) {
 				if (room.isPrivate === true) {

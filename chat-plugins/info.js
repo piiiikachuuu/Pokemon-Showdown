@@ -38,7 +38,7 @@ var commands = exports.commands = {
 		if (room.id === 'staff' && !this.canBroadcast()) return;
 		var targetUser = this.targetUserOrSelf(target, user.group === ' ');
 		if (!targetUser) {
-			return this.sendReply("User " + this.targetUsername + " not found.");
+			return this.errorReply("User " + this.targetUsername + " not found.");
 		}
 		var showAll = (cmd === 'ip' || cmd === 'whoare' || cmd === 'alt' || cmd === 'alts');
 		if (showAll && !user.can('lock') && targetUser !== user) {
@@ -94,6 +94,7 @@ var commands = exports.commands = {
 
 			var output = (targetRoom.auth && targetRoom.auth[targetUser.userid] ? targetRoom.auth[targetUser.userid] : '') + '<a href="/' + i + '" room="' + i + '">' + i + '</a>';
 			if (targetRoom.isPrivate === true) {
+				if (targetRoom.modjoin === '~') continue;
 				if (privaterooms) privaterooms += " | ";
 				privaterooms += output;
 			} else if (targetRoom.isPrivate) {
@@ -153,7 +154,7 @@ var commands = exports.commands = {
 		if ((user === targetUser || user.can('alts')) && hiddenrooms) {
 			buf += '<br />Hidden rooms: ' + hiddenrooms;
 		}
-		if ((user === targetUser || user.hasConsoleAccess(connection)) && privaterooms) {
+		if ((user === targetUser || user.can('makeroom')) && privaterooms) {
 			buf += '<br />Private rooms: ' + privaterooms;
 		}
 		this.sendReplyBox(buf);
@@ -164,7 +165,7 @@ var commands = exports.commands = {
 	host: function (target, room, user, connection, cmd) {
 		if (!target) return this.parse('/help host');
 		if (!this.can('rangeban')) return;
-		if (!/[0-9.]+/.test(target)) return this.sendReply('You must pass a valid IPv4 IP to /host.');
+		if (!/[0-9.]+/.test(target)) return this.errorReply('You must pass a valid IPv4 IP to /host.');
 		var self = this;
 		Dnsbl.reverse(target, function (err, hosts) {
 			self.sendReply('IP ' + target + ': ' + (hosts ? hosts[0] : 'NULL'));
@@ -172,6 +173,7 @@ var commands = exports.commands = {
 	},
 	hosthelp: ["/host [ip] - Gets the host for a given IP. Requires: & ~"],
 
+	searchip: 'ipsearch',
 	ipsearchall: 'ipsearch',
 	hostsearch: 'ipsearch',
 	ipsearch: function (target, room, user, connection, cmd) {
@@ -211,7 +213,7 @@ var commands = exports.commands = {
 				}
 			}
 		}
-		if (!results.length) return this.sendReply("No results found.");
+		if (!results.length) return this.errorReply("No results found.");
 		return this.sendReply(results.join('; '));
 	},
 	ipsearchhelp: ["/ipsearch [ip|range|host] - Find all users with specified IP, IP range, or host. Requires: & ~"],
@@ -225,11 +227,11 @@ var commands = exports.commands = {
 		if (!target) return this.parse('/help invite');
 		target = this.splitTarget(target);
 		if (!this.targetUser) {
-			return this.sendReply("User " + this.targetUsername + " not found.");
+			return this.errorReply("User " + this.targetUsername + " not found.");
 		}
 		var targetRoom = (target ? Rooms.search(target) : room);
 		if (!targetRoom) {
-			return this.sendReply("Room " + target + " not found.");
+			return this.errorReply("Room " + target + " not found.");
 		}
 		return this.parse('/msg ' + this.targetUsername + ', /invite ' + targetRoom.id);
 	},
@@ -280,7 +282,7 @@ var commands = exports.commands = {
 				}
 			}
 		} else {
-			return this.sendReply("No Pok\u00e9mon, item, move, ability or nature named '" + target + "' was found. (Check your spelling?)");
+			return this.errorReply("No Pok\u00e9mon, item, move, ability or nature named '" + target + "' was found. (Check your spelling?)");
 		}
 
 		if (showDetails) {
@@ -579,7 +581,7 @@ var commands = exports.commands = {
 
 		for (var cat = 0; cat < categories.length; cat++) {
 			var search = categories[cat];
-			if (!searches[search]) continue;
+			if (!(search in searches)) continue;
 			switch (search) {
 			case 'types':
 				for (var mon in dex) {
@@ -735,7 +737,7 @@ var commands = exports.commands = {
 			results = results.randomize().slice(0, randomOutput);
 		}
 
-		var resultsStr = this.broadcasting ? "" : ("<font color=#999999>" + message + ":</font><br>");
+		var resultsStr = this.broadcasting ? "" : ("<font color=#999999>" + Tools.escapeHTML(message) + ":</font><br>");
 		if (results.length > 1) {
 			if (showAll || results.length <= RESULTS_MAX_LENGTH + 5) {
 				results.sort();
@@ -770,9 +772,9 @@ var commands = exports.commands = {
 			if (!targets[i]) continue;
 			var num = Number(targets[i]);
 			if (Number.isInteger(num)) {
-				if (qty) return this.sendReply("Only specify the number of Pok\u00e9mon once.");
+				if (qty) return this.errorReply("Only specify the number of Pok\u00e9mon once.");
 				qty = num;
-				if (qty < 1 || 15 < qty) return this.sendReply("Number of random Pok\u00e9mon must be between 1 and 15.");
+				if (qty < 1 || 15 < qty) return this.errorReply("Number of random Pok\u00e9mon must be between 1 and 15.");
 				targetsBuffer.push("random" + qty);
 			} else {
 				targetsBuffer.push(targets[i]);
@@ -1119,7 +1121,7 @@ var commands = exports.commands = {
 		if (targetMon) {
 			resultsStr += "<font color=#999999>Matching moves found in learnset for</font> " + targetMon + ":<br>";
 		} else {
-			resultsStr += this.broadcasting ? "" : ("<font color=#999999>" + message + ":</font><br>");
+			resultsStr += this.broadcasting ? "" : ("<font color=#999999>" + Tools.escapeHTML(message) + ":</font><br>");
 		}
 		if (results.length > 0) {
 			if (showAll || results.length <= RESULTS_MAX_LENGTH + 5) {
@@ -1351,7 +1353,7 @@ var commands = exports.commands = {
 			}
 		}
 
-		var resultsStr = this.broadcasting ? "" : ("<font color=#999999>" + message + ":</font><br>");
+		var resultsStr = this.broadcasting ? "" : ("<font color=#999999>" + Tools.escapeHTML(message) + ":</font><br>");
 		if (foundItems.length > 0) {
 			if (showAll || foundItems.length <= RESULTS_MAX_LENGTH + 5) {
 				foundItems.sort();
@@ -1394,17 +1396,17 @@ var commands = exports.commands = {
 		if (cmd === 'g6learn') lsetData.format = {noPokebank: true};
 
 		if (!template.exists) {
-			return this.sendReply("Pok\u00e9mon '" + template.id + "' not found.");
+			return this.errorReply("Pok\u00e9mon '" + template.id + "' not found.");
 		}
 
 		if (targets.length < 2) {
-			return this.sendReply("You must specify at least one move.");
+			return this.errorReply("You must specify at least one move.");
 		}
 
 		for (var i = 1, len = targets.length; i < len; ++i) {
 			move = Tools.getMove(targets[i]);
 			if (!move.exists) {
-				return this.sendReply("Move '" + move.id + "' not found.");
+				return this.errorReply("Move '" + move.id + "' not found.");
 			}
 			problem = TeamValidator.checkLearnsetSync(format, move, template.species, lsetData);
 			if (problem) break;
@@ -1521,7 +1523,7 @@ var commands = exports.commands = {
 	matchup: 'effectiveness',
 	effectiveness: function (target, room, user) {
 		var targets = target.split(/[,/]/).slice(0, 2);
-		if (targets.length !== 2) return this.sendReply("Attacker and defender must be separated with a comma.");
+		if (targets.length !== 2) return this.errorReply("Attacker and defender must be separated with a comma.");
 
 		var searchMethods = {'getType':1, 'getMove':1, 'getTemplate':1};
 		var sourceMethods = {'getType':1, 'getMove':1};
@@ -1635,8 +1637,8 @@ var commands = exports.commands = {
 
 			return this.sendReply("No type or move '" + targets[i] + "' found.");
 		}
-		if (sources.length === 0) return this.sendReply("No moves using a type table for determining damage were specified.");
-		if (sources.length > 4) return this.sendReply("Specify a maximum of 4 moves or types.");
+		if (sources.length === 0) return this.errorReply("No moves using a type table for determining damage were specified.");
+		if (sources.length > 4) return this.errorReply("Specify a maximum of 4 moves or types.");
 
 		// converts to fractional effectiveness, 0 for immune
 		for (var type in bestCoverage) {
@@ -1757,6 +1759,206 @@ var commands = exports.commands = {
 		"!coverage [move 1], [move 2] ... - Shows this information to everyone.",
 		"Adding the parameter 'all' or 'table' will display the information with a table of all type combinations."],
 
+	statcalc: function (target, room, user) {
+		if (!this.canBroadcast()) return;
+		if (!target) return this.parse("/help statcalc");
+
+		var targets = target.split(' ');
+
+		var lvlSet, natureSet, ivSet, evSet, baseSet, modSet = false;
+
+		var pokemon;
+		var useStat = '';
+
+		var level = 100;
+		var calcHP = false;
+		var nature = 1.0;
+		var iv = 31;
+		var ev = 252;
+		var statValue = -1;
+		var modifier = 0;
+		var positiveMod = true;
+
+		for (var i in targets) {
+			var lowercase = targets[i].toLowerCase();
+
+			if (!lvlSet) {
+				if (lowercase === 'lc') {
+					level = 5;
+					lvlSet = true;
+					continue;
+				} else if (lowercase === 'vgc') {
+					level = 50;
+					lvlSet = true;
+					continue;
+				} else if (lowercase.startsWith('lv') || lowercase.startsWith('level')) {
+					level = parseInt(targets[i].replace(/\D/g, ''), 10);
+					lvlSet = true;
+					if (level < 1 || level > 9999) {
+						return this.sendReplyBox('Invalid value for level: ' + level);
+					}
+					continue;
+				}
+			}
+
+			if (!useStat) {
+				switch (lowercase) {
+				case 'hp':
+				case 'hitpoints':
+					calcHP = true;
+					useStat = 'hp';
+					break;
+				case 'atk':
+				case 'attack':
+					useStat = 'atk';
+					break;
+				case 'def':
+				case 'defense':
+					useStat = 'def';
+					break;
+				case 'spa':
+					useStat = 'spa';
+					break;
+				case 'spd':
+				case 'sdef':
+					useStat = 'spd';
+					break;
+				case 'spe':
+				case 'speed':
+					useStat = 'spe';
+					break;
+				}
+				continue;
+			}
+
+			if (!natureSet) {
+				if (lowercase === 'boosting' || lowercase === 'positive') {
+					nature = 1.1;
+					natureSet = true;
+					continue;
+				} else if (lowercase === 'negative' || lowercase === 'inhibiting') {
+					nature = 0.9;
+					natureSet = true;
+					continue;
+				} else if (lowercase === 'neutral') {
+					continue;
+				}
+			}
+
+			if (!ivSet) {
+				if (lowercase.endsWith('iv') || lowercase.endsWith('ivs')) {
+					iv = parseInt(targets[i]);
+					ivSet = true;
+
+					if (isNaN(iv)) {
+						return this.sendReplyBox('Invalid value for IVs: ' + Tools.escapeHTML(targets[i]));
+					}
+
+					continue;
+				}
+			}
+
+			if (!evSet) {
+				if (lowercase === 'invested' || lowercase === 'max') {
+					evSet = true;
+				} else if (lowercase === 'uninvested') {
+					ev = 0;
+					evSet = true;
+				} else if (lowercase.endsWith('ev') || lowercase.endsWith('evs')) {
+					ev = parseInt(targets[i]);
+					evSet = true;
+
+					if (isNaN(ev)) {
+						return this.sendReplyBox('Invalid value for EVs: ' + Tools.escapeHTML(targets[i]));
+					}
+					if (ev > 255 || ev < 0) {
+						return this.sendReplyBox('The amount of EVs should be between 0 and 255.');
+					}
+
+					if (!natureSet) {
+						if (targets[i].indexOf('+') > -1) {
+							nature = 1.1;
+							natureSet = true;
+						} else if (targets[i].indexOf('-') > -1) {
+							nature = 0.9;
+							natureSet = true;
+						}
+					}
+
+					continue;
+				}
+			}
+
+			if (!modSet) {
+				if (targets[i] === 'scarf' || targets[i] === 'specs' || targets[i] === 'band') {
+					modifier = 1;
+					modSet = true;
+				} else if (targets[i].charAt(0) === '+') {
+					modifier = parseInt(targets[i].charAt(1));
+					modSet = true;
+				} else if (targets[i].charAt(0) === '-') {
+					positiveMod = false;
+					modifier = parseInt(targets[i].charAt(1));
+					modSet = true;
+				}
+				if (isNaN(modifier)) {
+					return this.sendReplyBox('Invalid value for modifier: ' + Tools.escapeHTML(modifier));
+				}
+				if (modifier > 6) {
+					return this.sendReplyBox('Modifier should be a number between -6 and +6');
+				}
+			}
+
+			if (!pokemon) {
+				var testPoke = Tools.getTemplate(targets[i]);
+				if (testPoke.baseStats) {
+					pokemon = testPoke.baseStats;
+					baseSet = true;
+					continue;
+				}
+			}
+
+			var tempStat = parseInt(targets[i]);
+
+			if (!isNaN(tempStat) && !baseSet && tempStat > 0 && tempStat < 256) {
+				statValue = tempStat;
+				baseSet = true;
+			}
+
+			var pokemon = Tools.getTemplate(targets[i]);
+		}
+
+		if (pokemon) {
+			if (useStat) {
+				statValue = pokemon[useStat];
+			} else {
+				return this.sendReplyBox('No stat found.');
+			}
+		}
+
+		if (statValue < 0) {
+			return this.sendReplyBox('No valid value for base stat found.');
+		}
+
+		var output;
+
+		if (calcHP) {
+			output = (((iv + (2 * statValue) + (ev / 4) + 100) * level) / 100) + 10;
+		} else {
+			output = Math.floor((((iv + (2 * statValue) + (ev / 4)) * level) / 100) + 5) * nature;
+			if (positiveMod) {
+				output *= (2 + modifier) / 2;
+			} else {
+				output *= 2 / (2 + modifier);
+			}
+		}
+		return this.sendReplyBox('Base ' + statValue + (calcHP ? ' HP ' : ' ') + 'at level ' + level + ' with ' + iv + ' IVs, ' + ev + (nature === 1.1 ? '+' : (nature === 0.9 ? '-' : '')) + ' EVs' + (modifier > 0 && !calcHP ? ' at ' + (positiveMod ? '+' : '-') + modifier : '') + ': <b>' + Math.floor(output) + '</b>.');
+	},
+
+	statcalchelp: ["/statcalc [level] [base stat] [IVs] [nature] [EVs] [modifier] (only base stat is required) - Calculates what the actual stat of a Pokémon is with the given parameters. For example, '/statcalc lv50 100 30iv positive 252 scarf' calculates the speed of a base 100 scarfer with HP Ice in Battle Spot, and '/statcalc uninvested 90 neutral' calculates the attack of an uninvested Crobat.",
+		"!statcalc [level] [base stat] [IVs] [nature] [EVs] [modifier] (only base stat is required) - Shows this information to everyone.",
+		"Inputing 'hp' as an argument makes it use the formula for HP. Instead of giving nature, '+' and '-' can be appended to the EV amount to signify a boosting or inihibting nature."],
+
 	/*********************************************************
 	 * Informational commands
 	 *********************************************************/
@@ -1821,7 +2023,7 @@ var commands = exports.commands = {
 	bugs: function (target, room, user) {
 		if (!this.canBroadcast()) return;
 		if (room.battle) {
-			this.sendReplyBox("<center><button name=\"saveReplay\"><i class=\"icon-upload\"></i> Save Replay</button> &mdash; <a href=\"https://www.smogon.com/forums/threads/3520646/\">Questions</a> &mdash; <a href=\"https://www.smogon.com/forums/threads/3469932/\">Bug Reports</a></center>");
+			this.sendReplyBox("<center><button name=\"saveReplay\"><i class=\"fa fa-upload\"></i> Save Replay</button> &mdash; <a href=\"https://www.smogon.com/forums/threads/3520646/\">Questions</a> &mdash; <a href=\"https://www.smogon.com/forums/threads/3469932/\">Bug Reports</a></center>");
 		} else {
 			this.sendReplyBox(
 				"Have a replay showcasing a bug on Pok&eacute;mon Showdown?<br />" +
@@ -1833,7 +2035,7 @@ var commands = exports.commands = {
 
 	avatars: function (target, room, user) {
 		if (!this.canBroadcast()) return;
-		this.sendReplyBox("You can <button name=\"avatars\">change your avatar</button> by clicking on it in the <button name=\"openOptions\"><i class=\"icon-cog\"></i> Options</button> menu in the upper right. Custom avatars are only obtainable by staff.");
+		this.sendReplyBox("You can <button name=\"avatars\">change your avatar</button> by clicking on it in the <button name=\"openOptions\"><i class=\"fa fa-cog\"></i> Options</button> menu in the upper right. Custom avatars are only obtainable by staff.");
 	},
 	avatarshelp: ["/avatars - Explains how to change avatars.",
 		"!avatars - Show everyone that information. Requires: + % @ # & ~"],
@@ -2031,12 +2233,21 @@ var commands = exports.commands = {
 			"- /rules <em>rules link</em>: set the room rules link seen when using /rules<br />" +
 			"- /roommod, /roomdriver <em>username</em>: appoint a room moderator/driver<br />" +
 			"- /roomdemod, /roomdedriver <em>username</em>: remove a room moderator/driver<br />" +
+			"- /roomdeauth <em>username</em>: remove all room auth from a user<br />" +
 			"- /modchat <em>[%/@/#]</em>: set modchat level<br />" +
 			"- /declare <em>message</em>: make a large blue declaration to the room<br />" +
 			"- !htmlbox <em>HTML code</em>: broadcasts a box of HTML code to the room<br />" +
 			"- !showimage <em>[url], [width], [height]</em>: shows an image to the room<br />" +
 			"<br />" +
 			"More detailed help can be found in the <a href=\"https://www.smogon.com/sim/roomauth_guide\">roomauth guide</a><br />" +
+			"<br />" +
+			"Tournament Help:<br />" +
+			"- /tour create <em>format</em>, elimination: Creates a new single elimination tournament in the current room.<br />" +
+			"- /tour create <em>format</em>, roundrobin: Creates a new round robin tournament in the current room.<br />" +
+			"- /tour end: Forcibly ends the tournament in the current room<br />" +
+			"- /tour start: Starts the tournament in the current room<br />" +
+			"<br />" +
+			"More detailed help can be found <a href=\"https://gist.github.com/verbiage/0846a552595349032fbe\">here</a><br />" +
 			"</div>"
 		);
 	},
@@ -2064,7 +2275,7 @@ var commands = exports.commands = {
 		}
 		if (!this.can('roommod', null, room)) return;
 		if (target.length > 100) {
-			return this.sendReply("Error: Room rules link is too long (must be under 100 characters). You can use a URL shortener to shorten the link.");
+			return this.errorReply("Error: Room rules link is too long (must be under 100 characters). You can use a URL shortener to shorten the link.");
 		}
 
 		room.rulesLink = target.trim();
@@ -2322,7 +2533,7 @@ var commands = exports.commands = {
 
 	register: function () {
 		if (!this.canBroadcast()) return;
-		this.sendReplyBox('You will be prompted to register upon winning a rated battle. Alternatively, there is a register button in the <button name="openOptions"><i class="icon-cog"></i> Options</button> menu in the upper right.');
+		this.sendReplyBox('You will be prompted to register upon winning a rated battle. Alternatively, there is a register button in the <button name="openOptions"><i class="fa fa-cog"></i> Options</button> menu in the upper right.');
 	},
 
 	/*********************************************************
@@ -2374,9 +2585,9 @@ var commands = exports.commands = {
 			default:
 				offset = Number(target.slice(modifierData.index));
 				if (isNaN(offset)) return this.parse('/help dice');
-				if (!Number.isSafeInteger(offset)) return this.sendReply("The specified offset must be an integer up to " + Number.MAX_SAFE_INTEGER + ".");
+				if (!Number.isSafeInteger(offset)) return this.errorReply("The specified offset must be an integer up to " + Number.MAX_SAFE_INTEGER + ".");
 			}
-			if (removeOutlier && diceQuantity <= 1) return this.sendReply("More than one dice should be rolled before removing outliers.");
+			if (removeOutlier && diceQuantity <= 1) return this.errorReply("More than one dice should be rolled before removing outliers.");
 			target = target.slice(0, modifierData.index);
 		}
 
@@ -2384,14 +2595,14 @@ var commands = exports.commands = {
 		if (target.length) {
 			diceFaces = Number(target);
 			if (!Number.isSafeInteger(diceFaces) || diceFaces <= 0) {
-				return this.sendReply("Rolled dice must have a natural amount of faces up to " + Number.MAX_SAFE_INTEGER + ".");
+				return this.errorReply("Rolled dice must have a natural amount of faces up to " + Number.MAX_SAFE_INTEGER + ".");
 			}
 		}
 
 		if (diceQuantity > 1) {
 			// Make sure that we can deal with high rolls
 			if (!Number.isSafeInteger(offset < 0 ? diceQuantity * diceFaces : diceQuantity * diceFaces + offset)) {
-				return this.sendReply("The maximum sum of rolled dice must be lower or equal than " + Number.MAX_SAFE_INTEGER + ".");
+				return this.errorReply("The maximum sum of rolled dice must be lower or equal than " + Number.MAX_SAFE_INTEGER + ".");
 			}
 		}
 
