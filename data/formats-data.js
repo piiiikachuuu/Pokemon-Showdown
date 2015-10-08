@@ -1926,7 +1926,7 @@ exports.BattleFormatsData = {
 	},
 	piloswine: {
 		randomBattleMoves: ["earthquake","iciclecrash","iceshard","superpower","endeavor","stealthrock"],
-		tier: "PU"
+		tier: "NU"
 	},
 	mamoswine: {
 		randomBattleMoves: ["iceshard","earthquake","endeavor","iciclecrash","stealthrock","superpower","knockoff"],
@@ -2994,8 +2994,8 @@ exports.BattleFormatsData = {
 		tier: "(RU)"
 	},
 	glaliemega: {
-		randomBattleMoves: ["crunch","iceshard","taunt","earthquake","explosion","return","spikes"],
-		randomDoubleBattleMoves: ["crunch","iceshard","taunt","earthquake","explosion","protect","return"],
+		randomBattleMoves: ["freezedry","iceshard","earthquake","explosion","return","spikes"],
+		randomDoubleBattleMoves: ["crunch","iceshard","freezedry","earthquake","explosion","protect","return"],
 		requiredItem: "Glalitite",
 		tier: "RU"
 	},
@@ -3498,9 +3498,13 @@ exports.BattleFormatsData = {
 		tier: "LC"
 	},
 	cherrim: {
-		randomBattleMoves: ["sunnyday","solarbeam","weatherball","hiddenpowerice","energyball","synthesis"],
-		randomDoubleBattleMoves: ["sunnyday","solarbeam","weatherball","hiddenpowerice","protect"],
+		randomBattleMoves: ["energyball","dazzlinggleam","hiddenpowerfire","synthesis","healingwish"],
+		randomDoubleBattleMoves: ["sunnyday","solarbeam","weatherball","gigadrain","protect"],
 		tier: "PU"
+	},
+	cherrimsunshine: {
+		randomBattleMoves: ["sunnyday","solarbeam","gigadrain","weatherball","hiddenpowerice"],
+		randomDoubleBattleMoves: ["sunnyday","solarbeam","gigadrain","weatherball","protect"]
 	},
 	shellos: {
 		randomBattleMoves: ["scald","clearsmog","recover","toxic","icebeam","stockpile"],
@@ -4416,7 +4420,7 @@ exports.BattleFormatsData = {
 	gothitelle: {
 		randomBattleMoves: ["psychic","thunderbolt","shadowball","hiddenpowerfire","hiddenpowerfighting","substitute","calmmind","trick","psyshock"],
 		randomDoubleBattleMoves: ["psychic","thunderbolt","shadowball","hiddenpowerfighting","reflect","lightscreen","psyshock","energyball","trickroom","taunt","healpulse","protect"],
-		tier: "RU"
+		tier: "NU"
 	},
 	solosis: {
 		randomBattleMoves: ["calmmind","recover","psychic","hiddenpowerfighting","shadowball","trickroom","psyshock"],

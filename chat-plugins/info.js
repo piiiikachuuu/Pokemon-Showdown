@@ -1779,7 +1779,7 @@ var commands = exports.commands = {
 		var modifier = 0;
 		var positiveMod = true;
 
-		for (var i in targets) {
+		for (var i = 0; i < targets.length; i++) {
 			var lowercase = targets[i].toLowerCase();
 
 			if (!lvlSet) {
@@ -1807,28 +1807,27 @@ var commands = exports.commands = {
 				case 'hitpoints':
 					calcHP = true;
 					useStat = 'hp';
-					break;
+					continue;
 				case 'atk':
 				case 'attack':
 					useStat = 'atk';
-					break;
+					continue;
 				case 'def':
 				case 'defense':
 					useStat = 'def';
-					break;
+					continue;
 				case 'spa':
 					useStat = 'spa';
-					break;
+					continue;
 				case 'spd':
 				case 'sdef':
 					useStat = 'spd';
-					break;
+					continue;
 				case 'spe':
 				case 'speed':
 					useStat = 'spe';
-					break;
-				}
 				continue;
+			}
 			}
 
 			if (!natureSet) {
@@ -1924,8 +1923,6 @@ var commands = exports.commands = {
 				statValue = tempStat;
 				baseSet = true;
 			}
-
-			var pokemon = Tools.getTemplate(targets[i]);
 		}
 
 		if (pokemon) {
@@ -2227,6 +2224,7 @@ var commands = exports.commands = {
 			"- /roomvoice <em>username</em>: appoint a room voice<br />" +
 			"- /roomdevoice <em>username</em>: remove a room voice<br />" +
 			"- /modchat <em>[off/autoconfirmed/+]</em>: set modchat level<br />" +
+			"- /staffintro <em>intro</em>: sets the staff introduction that will be displayed for all staff joining the room<br />" +
 			"<br />" +
 			"Room owners (#) can also use:<br />" +
 			"- /roomintro <em>intro</em>: sets the room introduction that will be displayed for all users joining the room<br />" +
@@ -2659,15 +2657,44 @@ var commands = exports.commands = {
 		if (!target) return this.parse('/help showimage');
 		if (!this.can('declare', null, room)) return false;
 		if (!this.canBroadcast()) return;
+		if (this.room.isPersonal && !this.user.can('announce')) {
+			return this.errorReply("Images are not allowed in personal rooms.");
+		}
 
 		var targets = target.split(',');
 		if (targets.length !== 3) {
+			// Width and height are required because most browsers insert the
+			// <img> element before width and height are known, and when the
+			// image is loaded, this changes the height of the chat area, which
+			// messes up autoscrolling.
 			return this.parse('/help showimage');
 		}
 
-		this.sendReply('|raw|<img src="' + Tools.escapeHTML(targets[0]) + '" alt="" width="' + toId(targets[1]) + '" height="' + toId(targets[2]) + '" />');
+		var image = targets[0].trim();
+		if (!image) return this.errorReply('No image URL was provided!');
+		if (!/^https?:\/\//.test(image)) image = '//' + image;
+
+		var width = targets[1].trim();
+		if (!width) return this.errorReply('No width for the image was provided!');
+		if (!isNaN(width)) width += 'px';
+
+		var height = targets[2].trim();
+		if (!height) return this.errorReply('No height for the image was provided!');
+		if (!isNaN(height)) height += 'px';
+
+		var unitRegex = /^\d+(?:p[xtc]|%|[ecm]m|ex|in)$/;
+		if (!unitRegex.test(width)) {
+			return this.errorReply('"' + width + '" is not a valid width value!');
+		}
+		if (!unitRegex.test(height)) {
+			return this.errorReply('"' + height + '" is not a valid height value!');
+		}
+
+		this.sendReply('|raw|<img src="' + Tools.escapeHTML(image) + '" ' + 'style="width: ' + Tools.escapeHTML(width) + '; height: ' + Tools.escapeHTML(height) + '" />');
 	},
-	showimagehelp: ["/showimage [url], [width], [height] - Show an image. Requires: # & ~"],
+	showimagehelp: ["/showimage [url], [width], [height] - Show an image. " +
+		"Any CSS units may be used for the width or height (default: px)." +
+		"Requires: # & ~"],
 
 	htmlbox: function (target, room, user, connection, cmd, message) {
 		if (!target) return this.parse('/help htmlbox');
